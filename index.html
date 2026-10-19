@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Quiz Generator - Smart Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-lg font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                ⚡ Quiz Generator AI
+            </h1>
+            <button onclick="showDashboard()" class="text-xs px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                📂 Kelola Arsip Kuis
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-3xl w-full mx-auto px-4 py-6 flex-grow">
+        
+        <!-- Bagian Input Materi -->
+        <section id="input-section" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div>
+                <h2 class="text-base font-semibold mb-1 text-slate-200">Buat Kuis Baru dari Materi Kuliah</h2>
+                <p class="text-xs text-slate-400">Unggah file PDF modul kuliahmu atau tempel teks ringkasan di bawah ini.</p>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-2">Judul / Mata Kuliah:</label>
+                <input type="text" id="quiz-title-input" 
+                    class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition mb-3"
+                    placeholder="Contoh: Sistem Basis Data - Normalisasi ERD">
+                
+                <label class="block text-xs font-medium text-slate-400 mb-2">Pilih File PDF:</label>
+                <input type="file" id="material-file" accept=".pdf"
+                    class="w-full text-xs text-slate-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 file:cursor-pointer bg-slate-950 border border-slate-800 rounded-xl cursor-pointer">
+            </div>
+
+            <div class="text-center text-xs text-slate-500">— ATAU KETIK MANUAL —</div>
+
+            <textarea id="material-input" rows="4" 
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition resize-y"
+                placeholder="Tempel catatan materi kuliah di sini..."></textarea>
+            
+            <button onclick="generateQuestions()" id="generate-btn"
+                class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl text-sm transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+                <span>Buat Soal dari Materi</span>
+            </button>
+        </section>
+
+        <!-- Bagian Dashboard Arsip Kuis (Pengelompokan & Riwayat) -->
+        <section id="dashboard-section" class="hidden space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-base font-bold text-slate-200">Arsip Kuis Tersimpan</h2>
+                <button onclick="showInputSection()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-xl transition">
+                    + Buat Kuis Baru
+                </button>
+            </div>
+            <div id="saved-quiz-list" class="space-y-3">
+                <!-- Daftar kuis tersimpan akan dimuat di sini -->
+            </div>
+        </section>
+
+        <!-- Bagian Loading -->
+        <section id="loading-section" class="hidden my-12 text-center">
+            <div class="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <p class="text-sm text-slate-400">Gemini sedang membaca dokumen dan meracik soal...</p>
+        </section>
+
+        <!-- Bagian Daftar Soal Kuis -->
+        <section id="quiz-section" class="hidden space-y-6">
+            <div class="flex items-center justify-between bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+                <div>
+                    <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Sedang Mengerjakan:</span>
+                    <h2 id="active-quiz-title" class="text-base font-bold text-slate-200">Judul Kuis</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="editQuizTitlePrompt()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 transition">
+                        ✏️ Ubah Judul
+                    </button>
+                    <button onclick="showDashboard()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl border border-slate-700 transition">
+                        📂 Arsip
+                    </button>
+                </div>
+            </div>
+            
+            <div id="questions-container" class="space-y-6"></div>
+        </section>
+
+    </main>
+
+    <footer class="border-t border-slate-800 py-4 text-center text-xs text-slate-500 bg-slate-900/30">
+        Dibuat dengan semangat oleh Sky &bull; Didukung oleh Google Gemini API
+    </footer>
+
+    <script>
+        let allQuizzes = JSON.parse(localStorage.getItem('my_quiz_archives')) || [];
+        let currentQuizIndex = null;
+
+        window.onload = function() {
+            if (allQuizzes.length > 0) {
+                showDashboard();
+            }
+        };
+
+        async function generateQuestions() {
+            const titleInput = document.getElementById('quiz-title-input').value.trim();
+            const materialText = document.getElementById('material-input').value.trim();
+            const materialFile = document.getElementById('material-file').files[0];
+            const inputSection = document.getElementById('input-section');
+            const loadingSection = document.getElementById('loading-section');
+
+            if (!materialText && !materialFile) {
+                alert('Harap unggah file PDF atau masukkan teks materi kuliah!');
+                return;
+            }
+
+            const quizTitle = titleInput || (materialFile ? materialFile.name : "Kuis Kuliah " + (allQuizzes.length + 1));
+
+            inputSection.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+
+            try {
+                const formData = new FormData();
+                if (materialFile) formData.append('materialFile', materialFile);
+                if (materialText) formData.append('material', materialText);
+
+                const response = await fetch('http://localhost:3000/api/generate-questions', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Terjadi kesalahan pada server.');
+
+                const newQuiz = {
+                    id: Date.now(),
+                    title: quizTitle,
+                    date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+                    questions: data.questions
+                };
+
+                allQuizzes.unshift(newQuiz);
+                localStorage.setItem('my_quiz_archives', JSON.stringify(allQuizzes));
+
+                loadingSection.classList.add('hidden');
+                openQuiz(0); // Buka kuis yang baru dibuat
+
+            } catch (error) {
+                alert('Gagal: ' + error.message);
+                loadingSection.classList.add('hidden');
+                inputSection.classList.remove('hidden');
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('quiz-section').classList.add('hidden');
+            document.getElementById('loading-section').classList.add('hidden');
+            
+            const dashboard = document.getElementById('dashboard-section');
+            const listContainer = document.getElementById('saved-quiz-list');
+            dashboard.classList.remove('hidden');
+            listContainer.innerHTML = '';
+
+            if (allQuizzes.length === 0) {
+                listContainer.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">Belum ada arsip kuis tersimpan. Silakan buat kuis baru!</p>`;
+                return;
+            }
+
+            allQuizzes.forEach((quiz, index) => {
+                const card = document.createElement('div');
+                card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-md hover:border-slate-700 transition';
+                card.innerHTML = `
+                    <div class="cursor-pointer flex-grow" onclick="openQuiz(${index})">
+                        <h3 class="text-sm font-bold text-slate-200 mb-1">${quiz.title}</h3>
+                        <p class="text-xs text-slate-500">${quiz.date} &bull; ${quiz.questions.length} Soal Pilihan Ganda</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openQuiz(${index})" class="text-xs bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 px-3 py-1.5 rounded-xl border border-indigo-500/30 transition">
+                            Mulai Latihan
+                        </button>
+                        <button onclick="deleteQuiz(${index})" class="text-xs bg-rose-950/30 hover:bg-rose-950/60 text-rose-400 px-2.5 py-1.5 rounded-xl border border-rose-900/50 transition" title="Hapus Kuis">
+                            🗑️
+                        </button>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        function showInputSection() {
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('quiz-section').classList.add('hidden');
+            document.getElementById('input-section').classList.remove('hidden');
+            document.getElementById('quiz-title-input').value = '';
+            document.getElementById('material-input').value = '';
+            document.getElementById('material-file').value = '';
+        }
+
+        function openQuiz(index) {
+            currentQuizIndex = index;
+            const quiz = allQuizzes[index];
+            
+            document.getElementById('dashboard-section').classList.add('hidden');
+            document.getElementById('input-section').classList.add('hidden');
+            document.getElementById('quiz-section').classList.remove('hidden');
+            
+            document.getElementById('active-quiz-title').textContent = quiz.title;
+            renderQuestions(quiz.questions);
+        }
+
+        function editQuizTitlePrompt() {
+            const currentTitle = allQuizzes[currentQuizIndex].title;
+            const newTitle = prompt("Masukkan judul baru untuk kuis ini:", currentTitle);
+            if (newTitle && newTitle.trim() !== "") {
+                allQuizzes[currentQuizIndex].title = newTitle.trim();
+                localStorage.setItem('my_quiz_archives', JSON.stringify(allQuizzes));
+                document.getElementById('active-quiz-title').textContent = newTitle.trim();
+            }
+        }
+
+        function deleteQuiz(index) {
+            if (confirm(`Apakah kamu yakin ingin menghapus kuis "${allQuizzes[index].title}"?`)) {
+                allQuizzes.splice(index, 1);
+                localStorage.setItem('my_quiz_archives', JSON.stringify(allQuizzes));
+                showDashboard();
+            }
+        }
+
+        function renderQuestions(questions) {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+
+            questions.forEach((q, qIndex) => {
+                const questionCard = document.createElement('div');
+                questionCard.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg';
+
+                let optionsHTML = '';
+                q.options.forEach((opt, optIndex) => {
+                    optionsHTML += `
+                        <button onclick="checkAnswer(${qIndex}, '${opt.replace(/'/g, "\\'")}', this)"
+                            class="option-btn-${qIndex} w-full text-left p-3 rounded-xl border border-slate-800 bg-slate-950/50 hover:bg-slate-800/80 text-sm text-slate-300 transition flex items-center gap-3">
+                            <span class="w-6 h-6 rounded-lg bg-slate-800 flex items-center justify-center text-xs font-semibold text-slate-400">${String.fromCharCode(65 + optIndex)}</span>
+                            <span>${opt}</span>
+                        </button>
+                    `;
+                });
+
+                questionCard.innerHTML = `
+                    <p class="text-sm font-medium text-slate-200 mb-4"><span class="text-indigo-400 font-bold mr-2">Soal ${qIndex + 1}.</span>${q.question}</p>
+                    <div class="space-y-2 mb-4">${optionsHTML}</div>
+                    <div id="explanation-${qIndex}" class="hidden mt-4 p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                        <span class="font-bold text-indigo-400 block mb-1">💡 Pembahasan:</span>
+                        <p>${q.explanation}</p>
+                    </div>
+                `;
+                container.appendChild(questionCard);
+            });
+        }
+
+        function checkAnswer(qIndex, selectedOption, buttonElement) {
+            const quiz = allQuizzes[currentQuizIndex];
+            const q = quiz.questions[qIndex];
+            const buttons = document.querySelectorAll(`.option-btn-${qIndex}`);
+            const explanationBox = document.getElementById(`explanation-${qIndex}`);
+
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.classList.add('cursor-not-allowed', 'opacity-70');
+                const textSpan = btn.querySelector('span:nth-child(2)');
+                if (textSpan && textSpan.textContent.trim() === q.correctAnswer.trim()) {
+                    btn.classList.remove('bg-slate-950/50', 'border-slate-800');
+                    btn.classList.add('bg-emerald-950/40', 'border-emerald-600/50', 'text-emerald-200');
+                }
+            });
+
+            if (selectedOption.trim() !== q.correctAnswer.trim()) {
+                buttonElement.classList.remove('bg-slate-950/50', 'border-slate-800');
+                buttonElement.classList.add('bg-rose-950/40', 'border-rose-600/50', 'text-rose-200');
+            }
+
+            explanationBox.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
